@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,56 @@ func readinessHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
+}
+
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+	type requestBody struct {
+		Body string `json:"body"`
+	}
+	type errorResponseBody struct {
+		Error string `json:"error"`
+	}
+	type successResponseBody struct {
+		Valid bool `json:"valid"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	reqBody := requestBody{}
+	err := decoder.Decode(&reqBody)
+
+	if err != nil {
+		fmt.Println("Error decoding request body:", err)
+		respBody := errorResponseBody{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(dat)
+		return
+	}
+
+	if len(reqBody.Body) > 140 {
+		fmt.Println("Chirp is too long")
+		respBody := errorResponseBody{
+			Error: "Chirp is too long",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(dat)
+		return
+	}
+
+	fmt.Println("Chirp is valid")
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	respBody := successResponseBody{
+		Valid: true,
+	}
+	dat, _ := json.Marshal(respBody)
+	w.WriteHeader(http.StatusOK)
+	w.Write(dat)
 }
 
 func (cfg *apiConfig) hitsCountHandler(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +109,8 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", readinessHandler)
 	serveMux.HandleFunc("GET /admin/metrics", cfg.hitsCountHandler)
 	serveMux.HandleFunc("/api/reset", cfg.resetCountHandler)
+
+	serveMux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
 
 	server := http.Server{
 		Addr:    ":8080",
