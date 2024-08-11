@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/maticardenas/chirpy-sn/internal/chirptext"
 )
 
 type apiConfig struct {
@@ -33,7 +35,7 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		Error string `json:"error"`
 	}
 	type successResponseBody struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -68,7 +70,7 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	respBody := successResponseBody{
-		Valid: true,
+		CleanedBody: chirptext.ReplaceChirpInput(reqBody.Body),
 	}
 	dat, _ := json.Marshal(respBody)
 	w.WriteHeader(http.StatusOK)

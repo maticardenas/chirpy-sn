@@ -27,7 +27,7 @@ func TestReplaceChirpInput(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		result := replaceChirpInput(tc.input)
+		result := ReplaceChirpInput(tc.input)
 		if result != tc.expected {
 			t.Errorf("Expected %q, but got %q", tc.expected, result)
 		}

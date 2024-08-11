@@ -2,7 +2,7 @@ package chirptext
 
 import "strings"
 
-func replaceChirpInput(input string) string {
+func ReplaceChirpInput(input string) string {
 	// replace all instances of words kerfuffle, sharbert and fornax with  ****
 	splitText := strings.Split(input, " ")
 	finalText := ""
