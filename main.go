@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"net/http"
-	"strconv"
+	"os"
 )
 
 type apiConfig struct {
@@ -23,9 +25,21 @@ func readinessHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) hitsCountHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Hits: " + strconv.Itoa(cfg.fileServerHits)))
+	file, err := os.Open("metrics.html")
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+	metricsHTML := fmt.Sprintf(string(fileContent), cfg.fileServerHits)
+	w.Write([]byte(metricsHTML))
 }
 
 func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, r *http.Request) {
@@ -41,9 +55,9 @@ func main() {
 	serveMux.Handle("/app/", cfg.middlewareMetricsInc(fileServerHandler))
 	// server file in ./assets/logo.png
 	serveMux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets"))))
-	serveMux.HandleFunc("/healthz", readinessHandler)
-	serveMux.HandleFunc("/metrics", cfg.hitsCountHandler)
-	serveMux.HandleFunc("/reset", cfg.resetCountHandler)
+	serveMux.HandleFunc("GET /api/healthz", readinessHandler)
+	serveMux.HandleFunc("GET /admin/metrics", cfg.hitsCountHandler)
+	serveMux.HandleFunc("/api/reset", cfg.resetCountHandler)
 
 	server := http.Server{
 		Addr:    ":8080",
