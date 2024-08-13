@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/maticardenas/chirpy-sn/internal/chirptext"
+	"github.com/maticardenas/chirpy-sn/internal/database"
 )
+
+var DbInstance *database.DB
 
 type apiConfig struct {
 	fileServerHits int
@@ -27,7 +29,7 @@ func readinessHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+func createChirpHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
 		Body string `json:"body"`
 	}
@@ -55,7 +57,6 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(reqBody.Body) > 140 {
-		fmt.Println("Chirp is too long")
 		respBody := errorResponseBody{
 			Error: "Chirp is too long",
 		}
@@ -68,11 +69,40 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Chirp is valid")
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	respBody := successResponseBody{
-		CleanedBody: chirptext.ReplaceChirpInput(reqBody.Body),
+	chirp, err := DbInstance.CreateChirp(reqBody.Body)
+
+	if err != nil {
+		fmt.Println("Error creating chirp:", err)
+		respBody := errorResponseBody{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(dat)
+		return
 	}
-	dat, _ := json.Marshal(respBody)
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	// respBody := successResponseBody{
+	// 	CleanedBody: chirptext.ReplaceChirpInput(reqBody.Body),
+	// }
+	dat, _ := json.Marshal(chirp)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(dat)
+}
+
+func getChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirps, err := DbInstance.GetChirps()
+	if err != nil {
+		fmt.Println("Error getting chirps:", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Something went wrong"}`))
+		return
+	}
+	dat, _ := json.Marshal(chirps)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(dat)
 }
@@ -101,7 +131,17 @@ func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, r *http.Request) 
 	cfg.fileServerHits = 0
 }
 
+func initializeDB() (*database.DB, error) {
+	db, err := database.NewDB("database.json")
+	if err != nil {
+		fmt.Println("Error initializing database:", err)
+		return nil, err
+	}
+	return db, nil
+}
+
 func main() {
+	DbInstance, _ = initializeDB()
 	serveMux := http.NewServeMux()
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
 	cfg := &apiConfig{}
@@ -112,7 +152,8 @@ func main() {
 	serveMux.HandleFunc("GET /admin/metrics", cfg.hitsCountHandler)
 	serveMux.HandleFunc("/api/reset", cfg.resetCountHandler)
 
-	serveMux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
+	serveMux.HandleFunc("POST /api/chirps", createChirpHandler)
+	serveMux.HandleFunc("GET /api/chirps", getChirpHandler)
 
 	server := http.Server{
 		Addr:    ":8080",
