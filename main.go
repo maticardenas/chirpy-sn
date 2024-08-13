@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/maticardenas/chirpy-sn/internal/database"
 )
@@ -14,6 +15,15 @@ var DbInstance *database.DB
 
 type apiConfig struct {
 	fileServerHits int
+}
+type requestBody struct {
+	Body string `json:"body"`
+}
+type errorResponseBody struct {
+	Error string `json:"error"`
+}
+type successResponseBody struct {
+	CleanedBody string `json:"cleaned_body"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -29,17 +39,39 @@ func readinessHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func createChirpHandler(w http.ResponseWriter, r *http.Request) {
-	type requestBody struct {
-		Body string `json:"body"`
-	}
-	type errorResponseBody struct {
-		Error string `json:"error"`
-	}
-	type successResponseBody struct {
-		CleanedBody string `json:"cleaned_body"`
+func getChirpHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		fmt.Println("Error converting id to int:", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "Invalid ID"}`))
+		return
 	}
 
+	chirp, err := DbInstance.GetChirps(id)
+	if err != nil {
+		fmt.Println("Error getting chirp:", err)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Chirp not found"}`))
+		return
+	}
+
+	if chirp[0].Id == 0 {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Chirp not found"}`))
+		return
+	}
+
+	dat, _ := json.Marshal(chirp[0])
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(dat)
+}
+
+func createChirpHandler(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	reqBody := requestBody{}
 	err := decoder.Decode(&reqBody)
@@ -92,7 +124,7 @@ func createChirpHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(dat)
 }
 
-func getChirpHandler(w http.ResponseWriter, r *http.Request) {
+func getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	chirps, err := DbInstance.GetChirps()
 	if err != nil {
 		fmt.Println("Error getting chirps:", err)
@@ -151,9 +183,9 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", readinessHandler)
 	serveMux.HandleFunc("GET /admin/metrics", cfg.hitsCountHandler)
 	serveMux.HandleFunc("/api/reset", cfg.resetCountHandler)
-
 	serveMux.HandleFunc("POST /api/chirps", createChirpHandler)
-	serveMux.HandleFunc("GET /api/chirps", getChirpHandler)
+	serveMux.HandleFunc("GET /api/chirps", getChirpsHandler)
+	serveMux.HandleFunc("GET /api/chirps/{id}", getChirpHandler)
 
 	server := http.Server{
 		Addr:    ":8080",

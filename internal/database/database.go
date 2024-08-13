@@ -82,7 +82,6 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	fmt.Printf("Chirp id: %v - Chirp body: %v\n", chirp.Id, chirp.Body)
 	fmt.Printf("Chirps: %v and chirps.Chirps: %v\n", chirps, chirps.Chirps)
 
-	// chirps.Chirps = make(map[int]Chirp)
 	chirps.Chirps[chirp.Id] = chirp
 
 	fmt.Println("Chirps after adding new chirp:", chirps)
@@ -97,7 +96,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	return chirp, nil
 }
 
-func (db *DB) GetChirps() ([]Chirp, error) {
+func (db *DB) GetChirps(chirpId ...int) ([]Chirp, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
@@ -109,8 +108,12 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 
 	chirpsList := make([]Chirp, 0, len(chirps.Chirps))
 
-	for _, chirp := range chirps.Chirps {
-		chirpsList = append(chirpsList, chirp)
+	if len(chirpId) == 0 {
+		for _, chirp := range chirps.Chirps {
+			chirpsList = append(chirpsList, chirp)
+		}
+	} else {
+		chirpsList = append(chirpsList, chirps.Chirps[chirpId[0]])
 	}
 
 	return chirpsList, nil
