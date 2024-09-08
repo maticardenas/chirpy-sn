@@ -16,8 +16,11 @@ var DbInstance *database.DB
 type apiConfig struct {
 	fileServerHits int
 }
-type requestBody struct {
+type chirpRequestBody struct {
 	Body string `json:"body"`
+}
+type userRequestBody struct {
+	Email string `json:"email"`
 }
 type errorResponseBody struct {
 	Error string `json:"error"`
@@ -71,9 +74,50 @@ func getChirpHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(dat)
 }
 
+func createUserHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	reqBody := userRequestBody{}
+	err := decoder.Decode(&reqBody)
+
+	if err != nil {
+		fmt.Println("Error decoding request body:", err)
+		respBody := errorResponseBody{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(dat)
+		return
+	}
+
+	fmt.Println("User is valid")
+	fmt.Println("Email:", reqBody.Email)
+
+	user, err := DbInstance.CreateUser(reqBody.Email)
+
+	if err != nil {
+		fmt.Println("Error creating user:", err)
+		respBody := errorResponseBody{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(dat)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	dat, _ := json.Marshal(user)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(dat)
+}
+
 func createChirpHandler(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	reqBody := requestBody{}
+	reqBody := chirpRequestBody{}
 	err := decoder.Decode(&reqBody)
 
 	if err != nil {
@@ -186,6 +230,7 @@ func main() {
 	serveMux.HandleFunc("POST /api/chirps", createChirpHandler)
 	serveMux.HandleFunc("GET /api/chirps", getChirpsHandler)
 	serveMux.HandleFunc("GET /api/chirps/{id}", getChirpHandler)
+	serveMux.HandleFunc("POST /api/users", createUserHandler)
 
 	server := http.Server{
 		Addr:    ":8080",

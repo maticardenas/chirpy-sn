@@ -17,13 +17,20 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 
+type User struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
+}
+
 type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 func readJSONFile(path string) (DBStructure, error) {
 	data := DBStructure{
 		Chirps: make(map[int]Chirp),
+		Users:  make(map[int]User),
 	}
 
 	file, err := os.Open(path)
@@ -96,6 +103,39 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	return chirp, nil
 }
 
+func (db *DB) CreateUser(email string) (User, error) {
+	db.mux.Lock()
+	defer db.mux.Unlock()
+
+	data, err := readJSONFile(db.path)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return User{}, err
+	}
+
+	lastUserID := data.Users[len(data.Users)].Id
+
+	fmt.Println("Last User ID:", lastUserID)
+
+	user := User{
+		Id:    lastUserID + 1,
+		Email: email,
+	}
+
+	fmt.Printf("User id: %v - User email: %v\n", user.Id, user.Email)
+
+	data.Users[user.Id] = user
+
+	err = writeJSONFile(db.path, data)
+
+	if err != nil {
+		fmt.Println("Error writing to file:", err)
+		return User{}, err
+	}
+
+	return user, nil
+}
+
 func (db *DB) GetChirps(chirpId ...int) ([]Chirp, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
@@ -129,6 +169,7 @@ func NewDB(path string) (*DB, error) {
 	if !dbExists {
 		dbStructure := DBStructure{
 			Chirps: make(map[int]Chirp),
+			Users:  make(map[int]User),
 		}
 		fmt.Printf("DBStrucutre: %v\n", dbStructure)
 
