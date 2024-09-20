@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -18,8 +20,9 @@ type Chirp struct {
 }
 
 type User struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type DBStructure struct {
@@ -103,7 +106,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	return chirp, nil
 }
 
-func (db *DB) CreateUser(email string) (User, error) {
+func (db *DB) CreateUser(email string, password string) (User, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
@@ -117,9 +120,12 @@ func (db *DB) CreateUser(email string) (User, error) {
 
 	fmt.Println("Last User ID:", lastUserID)
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
 	user := User{
-		Id:    lastUserID + 1,
-		Email: email,
+		Id:       lastUserID + 1,
+		Email:    email,
+		Password: string(hashedPassword),
 	}
 
 	fmt.Printf("User id: %v - User email: %v\n", user.Id, user.Email)

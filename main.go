@@ -20,6 +20,11 @@ type chirpRequestBody struct {
 	Body string `json:"body"`
 }
 type userRequestBody struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+type userResponseBody struct {
+	Id    int    `json:"id"`
 	Email string `json:"email"`
 }
 type errorResponseBody struct {
@@ -93,8 +98,9 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("User is valid")
 	fmt.Println("Email:", reqBody.Email)
+	fmt.Println("Password:", reqBody.Password)
 
-	user, err := DbInstance.CreateUser(reqBody.Email)
+	user, err := DbInstance.CreateUser(reqBody.Email, reqBody.Password)
 
 	if err != nil {
 		fmt.Println("Error creating user:", err)
@@ -110,7 +116,13 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	dat, _ := json.Marshal(user)
+	respBody := userResponseBody{
+		Id:    user.Id,
+		Email: user.Email,
+	}
+
+	dat, _ := json.Marshal(respBody)
+
 	w.WriteHeader(http.StatusCreated)
 	w.Write(dat)
 }
@@ -231,6 +243,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps", getChirpsHandler)
 	serveMux.HandleFunc("GET /api/chirps/{id}", getChirpHandler)
 	serveMux.HandleFunc("POST /api/users", createUserHandler)
+	// serveMux.HandleFunx("POST /api/login", loginHandler)
 
 	server := http.Server{
 		Addr:    ":8080",
