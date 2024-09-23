@@ -23,6 +23,10 @@ type userRequestBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+type loginRequestBody struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
 type userResponseBody struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
@@ -105,11 +109,11 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println("Error creating user:", err)
 		respBody := errorResponseBody{
-			Error: "Something went wrong",
+			Error: err.Error(),
 		}
 		dat, _ := json.Marshal(respBody)
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusConflict)
 		w.Write(dat)
 		return
 	}
@@ -124,6 +128,54 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 	dat, _ := json.Marshal(respBody)
 
 	w.WriteHeader(http.StatusCreated)
+	w.Write(dat)
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	reqBody := userRequestBody{}
+	err := decoder.Decode(&reqBody)
+
+	if err != nil {
+		fmt.Println("Error decoding request body:", err)
+		respBody := errorResponseBody{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(dat)
+		return
+	}
+
+	fmt.Println("Payload is valid")
+	fmt.Println("Email:", reqBody.Email)
+	fmt.Println("Password:", reqBody.Password)
+
+	user, err := DbInstance.CheckUser(reqBody.Email, reqBody.Password)
+
+	if err != nil {
+		fmt.Println("Error checking user credentials:", err)
+		respBody := errorResponseBody{
+			Error: err.Error(),
+		}
+		dat, _ := json.Marshal(respBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write(dat)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	respBody := userResponseBody{
+		Id:    user.Id,
+		Email: user.Email,
+	}
+
+	dat, _ := json.Marshal(respBody)
+
+	w.WriteHeader(http.StatusOK)
 	w.Write(dat)
 }
 
@@ -243,7 +295,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps", getChirpsHandler)
 	serveMux.HandleFunc("GET /api/chirps/{id}", getChirpHandler)
 	serveMux.HandleFunc("POST /api/users", createUserHandler)
-	// serveMux.HandleFunx("POST /api/login", loginHandler)
+	serveMux.HandleFunc("POST /api/login", loginHandler)
 
 	server := http.Server{
 		Addr:    ":8080",
