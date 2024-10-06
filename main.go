@@ -8,13 +8,16 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/joho/godotenv"
 	"github.com/maticardenas/chirpy-sn/internal/database"
 )
 
 var DbInstance *database.DB
+var cfg *apiConfig
 
 type apiConfig struct {
 	fileServerHits int
+	jwtSecret      string
 }
 type chirpRequestBody struct {
 	Body string `json:"body"`
@@ -24,8 +27,16 @@ type userRequestBody struct {
 	Password string `json:"password"`
 }
 type loginRequestBody struct {
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	Password  string `json:"password"`
+	Email     string `json:"email"`
+	ExpiresIn int    `json:"expires_in_seconds"`
+}
+type loginResponseBody struct {
+	Id        string `json:"id"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Email     string `json:"email"`
+	Token     string `json:"token"`
 }
 type userResponseBody struct {
 	Id    int    `json:"id"`
@@ -133,7 +144,7 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	reqBody := userRequestBody{}
+	reqBody := loginRequestBody{}
 	err := decoder.Decode(&reqBody)
 
 	if err != nil {
@@ -151,8 +162,16 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Payload is valid")
 	fmt.Println("Email:", reqBody.Email)
 	fmt.Println("Password:", reqBody.Password)
+	fmt.Println("ExpiresIn:", reqBody.ExpiresIn)
+
+	if reqBody.ExpiresIn == 0 || reqBody.ExpiresIn > 3600 {
+		reqBody.ExpiresIn = 3600
+		fmt.Println("Defaulting token expire time to 1 hour: ", reqBody.ExpiresIn)
+	}
 
 	user, err := DbInstance.CheckUser(reqBody.Email, reqBody.Password)
+
+	token := MakeJWT
 
 	if err != nil {
 		fmt.Println("Error checking user credentials:", err)
@@ -281,10 +300,13 @@ func initializeDB() (*database.DB, error) {
 }
 
 func main() {
+	godotenv.Load()
+	jwtSecret := os.Getenv("JWT_SECRET")
 	DbInstance, _ = initializeDB()
 	serveMux := http.NewServeMux()
 	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
-	cfg := &apiConfig{}
+	cfg = &apiConfig{}
+	cfg.jwtSecret = jwtSecret
 	serveMux.Handle("/app/", cfg.middlewareMetricsInc(fileServerHandler))
 	// server file in ./assets/logo.png
 	serveMux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets"))))
